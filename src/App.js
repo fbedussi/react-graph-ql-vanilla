@@ -1,25 +1,95 @@
 import React, { Component } from 'react';
-import logo from './logo.svg';
 import './App.css';
 
+import axios from 'axios';
+import { Organization } from './components/Organization';
+
+console.log(process.env.REACT_APP_GITHUB_PERSONAL_ACCESS_TOKEN);
+
+const axiosGitHubGrapQL = axios.create({
+  baseURL: 'https://api.github.com/graphql',
+  headers: {
+    Authorization: `bearer ${process.env.REACT_APP_GITHUB_PERSONAL_ACCESS_TOKEN}`,    
+  }
+});
+
+const GET_ISSES_OF_REPO = `
+{
+  organization(login: "the-road-to-learn-react") {
+    name
+    url
+    repository(name: "the-road-to-learn-react") {
+      name
+      url
+      issues(last:5) {
+        edges {
+          node {
+            id
+            title
+            url
+          }
+        }
+      }
+    }
+  }
+}`;
+
 class App extends Component {
+  state = {
+    path: 'the-road-to-learn-react/the-road-to-learn-react/',
+    organization: null,
+    errors: null,
+  }
+
+  componentDidMount() {
+    this.onFetchFromGithub();
+  }
+
+  onChange = event => {
+    this.setState({path: event.target.value});
+  }
+
+  onSubmit = event => {
+    event.preventDefault();
+  }
+  
+  onFetchFromGithub() {
+    axiosGitHubGrapQL
+      .post('', {query: GET_ISSES_OF_REPO})
+      .then(({data}) => this.setState({
+        organization: data.data.organization,
+        errors: data.errors,
+      }))
+      .catch((err) => console.error(err));
+  }
   render() {
+    const {path, organization, errors} = this.state;
+
     return (
       <div className="App">
-        <header className="App-header">
-          <img src={logo} className="App-logo" alt="logo" />
-          <p>
-            Edit <code>src/App.js</code> and save to reload.
-          </p>
-          <a
-            className="App-link"
-            href="https://reactjs.org"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Learn React
-          </a>
-        </header>
+        <h1>React GraphQl - Github Client</h1>
+
+        <form onSubmit={this.onSubmit}>
+          <label htmlFor="url">
+            Show open issues for https://github.com
+          </label>
+          <input
+            id="url"
+            type="text"
+            onChange={this.onChange}
+            value={path}
+          />
+          <button>Search</button>
+        </form>
+        <hr/>
+        {errors ?
+          <div>Something went wrong: {errors.map((error) => error.message).join('')}</div>
+          : null
+        }
+        {organization ?
+          <Organization organization={organization}/>
+          : <div>No information yet...</div>
+        }
       </div>
     );
   }
