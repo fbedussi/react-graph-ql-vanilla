@@ -1,19 +1,10 @@
 import React, { Component } from 'react';
 import './App.css';
 
-import axios from 'axios';
 import { Organization } from './components/Organization';
 
-console.log(process.env.REACT_APP_GITHUB_PERSONAL_ACCESS_TOKEN);
 
-const axiosGitHubGrapQL = axios.create({
-  baseURL: 'https://api.github.com/graphql',
-  headers: {
-    Authorization: `bearer ${process.env.REACT_APP_GITHUB_PERSONAL_ACCESS_TOKEN}`,    
-  }
-});
-
-const GET_ISSES_OF_REPO = `
+const GET_ISSUES_OF_REPO = `
 {
   organization(login: "the-road-to-learn-react") {
     name
@@ -46,24 +37,32 @@ class App extends Component {
   }
 
   onChange = event => {
-    this.setState({path: event.target.value});
+    this.setState({ path: event.target.value });
   }
 
   onSubmit = event => {
     event.preventDefault();
   }
-  
+
   onFetchFromGithub() {
-    axiosGitHubGrapQL
-      .post('', {query: GET_ISSES_OF_REPO})
-      .then(({data}) => this.setState({
-        organization: data.data.organization,
-        errors: data.errors,
-      }))
+    fetch('https://api.github.com/graphql', {
+        method: 'POST',
+        headers: {
+          Authorization: `bearer ${process.env.REACT_APP_GITHUB_PERSONAL_ACCESS_TOKEN}`,
+        },
+        body: JSON.stringify({ query: GET_ISSUES_OF_REPO })
+      })
+      .then((response) => response.json())
+      .then(({ data }) => {
+        this.setState({
+          organization: data.organization,
+          errors: data.errors,
+        })
+      })
       .catch((err) => console.error(err));
   }
   render() {
-    const {path, organization, errors} = this.state;
+    const { path, organization, errors } = this.state;
 
     return (
       <div className="App">
@@ -81,13 +80,13 @@ class App extends Component {
           />
           <button>Search</button>
         </form>
-        <hr/>
+        <hr />
         {errors ?
           <div>Something went wrong: {errors.map((error) => error.message).join('')}</div>
           : null
         }
         {organization ?
-          <Organization organization={organization}/>
+          <Organization organization={organization} />
           : <div>No information yet...</div>
         }
       </div>
