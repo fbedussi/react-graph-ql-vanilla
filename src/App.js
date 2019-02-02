@@ -2,28 +2,39 @@ import React, { Component } from 'react';
 import './App.css';
 
 import { Organization } from './components/Organization';
+import { GET_ISSUES_OF_REPO } from './GET_ISSUES_OF_REPO';
 
+function resolveIssuesQuery(result, cursor) {
+  return function(state) {
+    const { data, errors } = result;
 
-const GET_ISSUES_OF_REPO = `
-{
-  organization(login: "the-road-to-learn-react") {
-    name
-    url
-    repository(name: "the-road-to-learn-react") {
-      name
-      url
-      issues(last:5) {
-        edges {
-          node {
-            id
-            title
-            url
-          }
-        }
-      }
+    if (!cursor) {
+      return {
+        organization: data.organization,
+        errors: errors,
+      };
+    }
+
+    const { edges: oldIssues } = state.organization.repository.issues;
+    const { edges: newIssues } = data.organization.repository.issues;
+    const updatedIssues = oldIssues.concat(newIssues);
+
+    return {
+      organization: {
+        ...data.organization,
+        repository: {
+          ...data.organization.repository,
+          issues: {
+            ...data.organization.repository.issues,
+            edges: updatedIssues,
+          },
+        },
+      },
+      errors,
     }
   }
-}`;
+}
+
 
 class App extends Component {
   state = {
@@ -33,34 +44,44 @@ class App extends Component {
   }
 
   componentDidMount() {
-    this.onFetchFromGithub();
+    this.onFetchFromGithub(this.state.path);
   }
 
-  onChange = event => {
+  onChange = (event) => {
     this.setState({ path: event.target.value });
   }
 
-  onSubmit = event => {
+  onSubmit = (event) => {
     event.preventDefault();
+    this.onFetchFromGithub(this.state.path);
   }
 
-  onFetchFromGithub() {
-    fetch('https://api.github.com/graphql', {
-        method: 'POST',
-        headers: {
-          Authorization: `bearer ${process.env.REACT_APP_GITHUB_PERSONAL_ACCESS_TOKEN}`,
-        },
-        body: JSON.stringify({ query: GET_ISSUES_OF_REPO })
+  onFetchMoreIssues = () => {
+    const { endCursor } = this.state.organization.repository.issues.pageInfo;
+
+    this.onFetchFromGithub(this.state.path, endCursor);
+  }
+
+  onFetchFromGithub = (path, cursor) => {
+    const [organization, repo] = path.split('/');
+    const endpoint = 'https://api.github.com/graphql';
+    const options = {
+      method: 'POST',
+      headers: {
+        Authorization: `bearer ${process.env.REACT_APP_GITHUB_PERSONAL_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        query: GET_ISSUES_OF_REPO,
+        variables: { organization, repo, cursor },
       })
+    };
+
+    fetch(endpoint, options)
       .then((response) => response.json())
-      .then(({ data }) => {
-        this.setState({
-          organization: data.organization,
-          errors: data.errors,
-        })
-      })
+      .then((result) => this.setState(resolveIssuesQuery(result, cursor)))
       .catch((err) => console.error(err));
   }
+
   render() {
     const { path, organization, errors } = this.state;
 
@@ -70,7 +91,7 @@ class App extends Component {
 
         <form onSubmit={this.onSubmit}>
           <label htmlFor="url">
-            Show open issues for https://github.com
+            Show open issues for https://github.com &nbsp;
           </label>
           <input
             id="url"
@@ -86,7 +107,7 @@ class App extends Component {
           : null
         }
         {organization ?
-          <Organization organization={organization} />
+          <Organization organization={organization} onFetchMoreIssues={this.onFetchMoreIssues} />
           : <div>No information yet...</div>
         }
       </div>
